@@ -3,33 +3,33 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String?  @unique  // For parents - required
-  username  String?  @unique  // For children - optional, required if not parent
-  password  String
-  accountType String @default("child") // "parent" or "child"
-  parentId  String?  // Links child to parent
-  parent    User?    @relation("ParentChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children  User[]   @relation("ParentChildren")
-  createdAt DateTime @default(now())
-  books     Book[]
+  id          String   @id @default(cuid())
+  email       String?  @unique
+  username    String?  @unique
+  password    String
+  accountType String   @default("child")
+  parentId    String?
+  parent      User?    @relation("ParentChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children    User[]   @relation("ParentChildren")
+  createdAt   DateTime @default(now())
+  books       Book[]
 }
 
 model Book {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  isbn         String?
-  title        String
-  author       String?
-  coverUrl     String?
-  status       String   @default("want_to_read") // want_to_read, reading, finished
-  rating       Int?
-  notes        String?
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isbn      String?
+  title     String
+  author    String?
+  coverUrl  String?
+  status    String   @default("want_to_read")
+  rating    Int?
+  notes     String?
+  createdAt DateTime @default(now())
 }
