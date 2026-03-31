@@ -44,6 +44,8 @@ export default function Dashboard() {
   const [newChildUsername, setNewChildUsername] = useState("")
   const [newChildPassword, setNewChildPassword] = useState("")
   const [addingChild, setAddingChild] = useState(false)
+  const [shareToken, setShareToken] = useState<string | null>(null)
+  const [showShareLink, setShowShareLink] = useState(false)
 
   // Fix hydration mismatch - only use session data after mount
   useEffect(() => {
@@ -123,6 +125,24 @@ export default function Dashboard() {
     }
   }
 
+  const generateShareLink = async () => {
+    try {
+      const res = await fetch("/api/share", { method: "POST" })
+      const data = await res.json()
+      if (data.shareToken) {
+        setShareToken(data.shareToken)
+        setShowShareLink(true)
+      }
+    } catch (error) {
+      console.error("Failed to generate share link:", error)
+    }
+  }
+
+  const copyShareLink = () => {
+    const url = `${window.location.origin}/share/${shareToken}`
+    navigator.clipboard.writeText(url)
+  }
+
   const filteredBooks = filter === "all"
     ? books
     : books.filter(book => book.status === filter)
@@ -167,8 +187,42 @@ export default function Dashboard() {
             >
               Log Out
             </button>
+            {isParent && (
+              <button
+                onClick={generateShareLink}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Share
+              </button>
+            )}
           </div>
         </header>
+
+        {showShareLink && shareToken && (
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+            <p className="text-purple-800 font-medium mb-2">Share this link with family & friends:</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/share/${shareToken}`}
+                className="flex-1 px-3 py-2 border border-purple-300 rounded-lg bg-white"
+              />
+              <button
+                onClick={copyShareLink}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+              >
+                Copy
+              </button>
+              <button
+                onClick={() => setShowShareLink(false)}
+                className="text-purple-600 px-4 py-2"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Parent: Show children section */}
         {isParent && (

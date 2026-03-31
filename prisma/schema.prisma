@@ -14,6 +14,7 @@ model User {
   password    String
   accountType String   @default("child")
   parentId    String?
+  shareToken  String?  @unique
   parent      User?    @relation("ParentChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children    User[]   @relation("ParentChildren")
   createdAt   DateTime @default(now())
