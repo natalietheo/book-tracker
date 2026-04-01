@@ -6,8 +6,14 @@ import { randomBytes } from "crypto"
 export async function POST() {
   const session = await auth()
 
-  if (!session?.user?.id || session.user.accountType !== "parent") {
+  console.log("Share API called, session:", session)
+
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  if (session.user.accountType !== "parent") {
+    return NextResponse.json({ error: "Only parents can share" }, { status: 403 })
   }
 
   // Check if parent already has a share token

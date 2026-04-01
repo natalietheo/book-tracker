@@ -46,6 +46,8 @@ export default function Dashboard() {
   const [addingChild, setAddingChild] = useState(false)
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [showShareLink, setShowShareLink] = useState(false)
+  const [resettingChildId, setResettingChildId] = useState<string | null>(null)
+  const [resetPassword, setResetPassword] = useState("")
 
   // Fix hydration mismatch - only use session data after mount
   useEffect(() => {
