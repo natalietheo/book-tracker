@@ -8,17 +8,19 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  email       String?  @unique
-  username    String?  @unique
-  password    String
-  accountType String   @default("child")
-  parentId    String?
-  shareToken  String?  @unique
-  parent      User?    @relation("ParentChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children    User[]   @relation("ParentChildren")
-  createdAt   DateTime @default(now())
-  books       Book[]
+  id                 String    @id @default(cuid())
+  email              String?   @unique
+  username           String?   @unique
+  password           String
+  accountType        String    @default("child")
+  parentId           String?
+  shareToken         String?   @unique
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  parent             User?     @relation("ParentChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children           User[]    @relation("ParentChildren")
+  createdAt          DateTime  @default(now())
+  books              Book[]
 }
 
 model Book {

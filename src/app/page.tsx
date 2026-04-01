@@ -162,9 +162,19 @@ export default function Home() {
         </form>
 
         {isLogin && (
-          <p className="mt-6 text-center text-gray-600 text-sm">
-            Parents: create an account to add your children and track their reading.
-          </p>
+          <>
+            <p className="mt-6 text-center text-gray-600 text-sm">
+              Parents: create an account to add your children and track their reading.
+            </p>
+            <p className="mt-2 text-center">
+              <button
+                onClick={() => router.push("/forgot-password")}
+                className="text-blue-600 hover:underline text-sm"
+              >
+                Forgot Password?
+              </button>
+            </p>
+          </>
         )}
       </div>
     </main>
