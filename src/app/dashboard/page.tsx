@@ -130,6 +130,11 @@ export default function Dashboard() {
   const generateShareLink = async () => {
     try {
       const res = await fetch("/api/share", { method: "POST" })
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}))
+        console.error("Failed to generate share link:", errorData.error || res.statusText)
+        return
+      }
       const data = await res.json()
       if (data.shareToken) {
         setShareToken(data.shareToken)
