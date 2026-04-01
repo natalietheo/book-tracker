@@ -43,21 +43,28 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           id: user.id,
           name: user.email || user.username,
           email: user.email,
+          accountType: user.accountType,
+          parentId: user.parentId,
         }
       }
     })
   ],
   callbacks: {
+    async jwt({ token, user }) {
+      // Add user data to token
+      if (user) {
+        token.id = user.id
+        token.accountType = (user as any).accountType || "child"
+        token.parentId = (user as any).parentId || null
+      }
+      return token
+    },
     async session({ session, token }) {
-      if (session.user && token.sub) {
-        // Get user type and parentId to include in session
-        const user = await prisma.user.findUnique({
-          where: { id: token.sub },
-          select: { accountType: true, parentId: true }
-        })
-        session.user.id = token.sub
-        session.user.accountType = user?.accountType || "child"
-        session.user.parentId = user?.parentId || null
+      // Add token data to session
+      if (session.user) {
+        session.user.id = token.id as string
+        session.user.accountType = token.accountType as string
+        session.user.parentId = token.parentId as string | null
       }
       return session
     }
