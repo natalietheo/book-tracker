@@ -72,18 +72,31 @@ export default function Dashboard() {
   const fetchData = async () => {
     try {
       if (isParent) {
-        // Fetch children and family books
+        // Fetch children, family books, AND parent's own books
         const childrenRes = await fetch("/api/children")
         const booksRes = await fetch("/api/family-books")
+        const parentBooksRes = await fetch("/api/books")
 
         if (childrenRes.ok) {
           const childrenData = await childrenRes.json()
           setChildren(childrenData)
         }
+
+        let allBooks: any[] = []
+
+        // Add children's books
         if (booksRes.ok) {
-          const booksData = await booksRes.json()
-          setBooks(booksData)
+          const childrenBooks = await booksRes.json()
+          allBooks = allBooks.concat(childrenBooks)
         }
+
+        // Add parent's own books
+        if (parentBooksRes.ok) {
+          const pBooks = await parentBooksRes.json()
+          allBooks = allBooks.concat(pBooks.map((b: any) => ({ ...b, childName: "You" })))
+        }
+
+        setBooks(allBooks)
       } else {
         // Child user - fetch their own books
         const res = await fetch("/api/books")
