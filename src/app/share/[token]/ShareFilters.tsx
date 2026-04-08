@@ -5,7 +5,7 @@ import { useCallback } from "react"
 
 interface Child {
   id: string
-  username: string
+  username: string | null
 }
 
 interface Props {

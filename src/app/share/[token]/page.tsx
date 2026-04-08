@@ -2,6 +2,11 @@ import { prisma } from "@/lib/prisma"
 import BookCard from "@/components/BookCard"
 import ShareFilters from "./ShareFilters"
 
+interface Child {
+  id: string
+  username: string | null
+}
+
 interface Book {
   id: string
   title: string
