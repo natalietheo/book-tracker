@@ -35,7 +35,7 @@ export default function ShareFilters({ children, currentChild, currentStatus, cu
       <select
         value={currentChild}
         onChange={(e) => updateFilter("child", e.target.value)}
-        className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+        className="px-4 py-2 border border-gray-200 rounded-full bg-cream text-sm font-bold text-gray-700"
       >
         <option value="">All Children</option>
         {children.map((child) => (
@@ -49,10 +49,10 @@ export default function ShareFilters({ children, currentChild, currentStatus, cu
       <select
         value={currentStatus}
         onChange={(e) => updateFilter("status", e.target.value)}
-        className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+        className="px-4 py-2 border border-gray-200 rounded-full bg-cream text-sm font-bold text-gray-700"
       >
         <option value="all">All Bookshelves</option>
-        <option value="reading">Currently Reading</option>
+        <option value="reading">Reading</option>
         <option value="finished">Finished</option>
         <option value="want_to_read">Want to Read</option>
       </select>
@@ -61,7 +61,7 @@ export default function ShareFilters({ children, currentChild, currentStatus, cu
       <select
         value={currentRating}
         onChange={(e) => updateFilter("rating", e.target.value)}
-        className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm"
+        className="px-4 py-2 border border-gray-200 rounded-full bg-cream text-sm font-bold text-gray-700"
       >
         <option value="">All Ratings</option>
         <option value="5">5 Stars</option>
@@ -75,7 +75,7 @@ export default function ShareFilters({ children, currentChild, currentStatus, cu
       {(currentChild || currentStatus !== "all" || currentRating) && (
         <button
           onClick={() => router.push("?")}
-          className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
+          className="px-4 py-2 text-sm text-coral hover:text-coral font-bold"
         >
           Clear filters
         </button>
