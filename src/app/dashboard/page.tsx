@@ -33,7 +33,7 @@ const statusFilters = [
 ]
 
 export default function Dashboard() {
-  const { data: session, status } = useSession()
+  const { data: session, status, update } = useSession()
   const router = useRouter()
   const [books, setBooks] = useState<Book[]>([])
   const [children, setChildren] = useState<Child[]>([])
@@ -46,8 +46,9 @@ export default function Dashboard() {
   const [addingChild, setAddingChild] = useState(false)
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [showShareLink, setShowShareLink] = useState(false)
-  const [resettingChildId, setResettingChildId] = useState<string | null>(null)
-  const [resetPassword, setResetPassword] = useState("")
+  // Child switching state
+  const [switchedChild, setSwitchedChild] = useState<Child | null>(null)
+  const [switchingChild, setSwitchingChild] = useState(false)
 
   // Fix hydration mismatch - only use session data after mount
   useEffect(() => {
@@ -56,6 +57,8 @@ export default function Dashboard() {
 
   // Check if user is a parent (only after mounted to avoid hydration mismatch)
   const isParent = mounted && session?.user?.accountType === "parent"
+  // Check if parent is viewing as a child
+  const viewingAsChild = switchedChild !== null
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -67,12 +70,12 @@ export default function Dashboard() {
     if (mounted && session) {
       fetchData()
     }
-  }, [mounted, session])
+  }, [mounted, session, switchedChild])
 
   const fetchData = async () => {
     try {
-      if (isParent) {
-        // Fetch children, family books, AND parent's own books
+      if (isParent && !viewingAsChild) {
+        // Parent viewing their family shelf
         const childrenRes = await fetch("/api/children")
         const booksRes = await fetch("/api/family-books")
         const parentBooksRes = await fetch("/api/books")
@@ -84,13 +87,11 @@ export default function Dashboard() {
 
         let allBooks: any[] = []
 
-        // Add children's books
         if (booksRes.ok) {
           const childrenBooks = await booksRes.json()
           allBooks = allBooks.concat(childrenBooks)
         }
 
-        // Add parent's own books
         if (parentBooksRes.ok) {
           const pBooks = await parentBooksRes.json()
           allBooks = allBooks.concat(pBooks.map((b: any) => ({ ...b, childName: "You" })))
@@ -98,11 +99,22 @@ export default function Dashboard() {
 
         setBooks(allBooks)
       } else {
-        // Child user - fetch their own books
-        const res = await fetch("/api/books")
+        // Either child user OR parent viewing as a child - fetch that user's books
+        // Pass child ID in header if parent is viewing as child
+        const headers: HeadersInit = {}
+        if (isParent && viewingAsChild && switchedChild) {
+          headers["x-child-id"] = switchedChild.id
+        }
+
+        const res = await fetch("/api/books", { headers })
         if (res.ok) {
           const data = await res.json()
-          setBooks(data)
+          // Add childName for parent viewing as child
+          if (isParent && viewingAsChild) {
+            setBooks(data.map((b: any) => ({ ...b, childName: switchedChild?.username })))
+          } else {
+            setBooks(data)
+          }
         }
       }
     } catch (error) {
@@ -122,7 +134,7 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: newChildUsername,
-          password: newChildPassword,
+          // No password for children - they don't need one
           accountType: "child",
         }),
       })
@@ -137,6 +149,39 @@ export default function Dashboard() {
       console.error("Failed to add child:", error)
     } finally {
       setAddingChild(false)
+    }
+  }
+
+  const switchToChild = async (child: Child) => {
+    setSwitchingChild(true)
+    try {
+      const res = await fetch("/api/switch-child", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ childId: child.id }),
+      })
+
+      if (res.ok) {
+        setSwitchedChild(child)
+        // Refresh session to get updated data
+        await update()
+      }
+    } catch (error) {
+      console.error("Failed to switch to child:", error)
+    } finally {
+      setSwitchingChild(false)
+    }
+  }
+
+  const switchBackToParent = async () => {
+    setSwitchingChild(true)
+    try {
+      setSwitchedChild(null)
+      await update()
+    } catch (error) {
+      console.error("Failed to switch back:", error)
+    } finally {
+      setSwitchingChild(false)
     }
   }
 
@@ -187,13 +232,44 @@ export default function Dashboard() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-display text-gray-900">
-              {isParent ? "My Reading Shelf" : "My Books"}
+              {viewingAsChild
+                ? `${switchedChild?.username}'s Books`
+                : isParent
+                  ? "My Reading Shelf"
+                  : "My Books"}
             </h1>
-            <p className="text-gray-600 font-body">Track every book your family reads together</p>
+            <p className="text-gray-600 font-body">
+              {viewingAsChild
+                ? `Managing ${switchedChild?.username}'s reading list`
+                : "Track every book your family reads together"}
+            </p>
           </div>
           <div className="flex gap-3">
+            {/* Child Switcher Dropdown for Parents */}
+            {isParent && children.length > 0 && (
+              <select
+                value={viewingAsChild ? switchedChild?.id : ""}
+                onChange={(e) => {
+                  if (e.target.value === "") {
+                    switchBackToParent()
+                  } else {
+                    const child = children.find(c => c.id === e.target.value)
+                    if (child) switchToChild(child)
+                  }
+                }}
+                disabled={switchingChild}
+                className="bg-purple text-white px-4 py-3 rounded-2xl font-bold disabled:opacity-50"
+              >
+                <option value="">My Shelf</option>
+                {children.map((child) => (
+                  <option key={child.id} value={child.id}>
+                    {child.username}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
-              onClick={() => router.push("/add")}
+              onClick={() => router.push(`/add${viewingAsChild ? `?childId=${switchedChild?.id}` : ''}`)}
               className="bg-coral text-white px-5 py-3 rounded-2xl hover:bg-opacity-90 transition-colors flex items-center gap-2 font-bold"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -244,17 +320,30 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Parent: Show children section */}
+        {/* Parent: Show children section - always visible */}
         {isParent && (
           <div className="bg-cream rounded-2xl shadow-md p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Your Children</h2>
-              <button
-                onClick={() => setShowAddChild(!showAddChild)}
-                className="text-coral hover:underline text-sm font-bold"
-              >
-                {showAddChild ? "Cancel" : "+ Add Child"}
-              </button>
+              <h2 className="text-lg font-bold text-gray-900">
+                {viewingAsChild ? "Switch Child" : "Your Children"}
+              </h2>
+              {!viewingAsChild && (
+                <button
+                  onClick={() => setShowAddChild(!showAddChild)}
+                  className="text-coral hover:underline text-sm font-bold"
+                >
+                  {showAddChild ? "Cancel" : "+ Add Child"}
+                </button>
+              )}
+              {viewingAsChild && (
+                <button
+                  onClick={switchBackToParent}
+                  disabled={switchingChild}
+                  className="text-purple text-sm font-bold hover:underline disabled:opacity-50"
+                >
+                  ← Back to My Shelf
+                </button>
+              )}
             </div>
 
             {showAddChild && (
@@ -265,14 +354,6 @@ export default function Dashboard() {
                     value={newChildUsername}
                     onChange={(e) => setNewChildUsername(e.target.value)}
                     placeholder="Child's username"
-                    className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl bg-white font-body"
-                    required
-                  />
-                  <input
-                    type="password"
-                    value={newChildPassword}
-                    onChange={(e) => setNewChildPassword(e.target.value)}
-                    placeholder="Password"
                     className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl bg-white font-body"
                     required
                   />
@@ -291,19 +372,52 @@ export default function Dashboard() {
               <p className="text-gray-500 text-sm">No children added yet.</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {children.map(child => (
-                  <div
-                    key={child.id}
-                    className="p-4 bg-white rounded-2xl flex items-center justify-between"
+                {/* My Reading Shelf option - always first when viewing as child */}
+                {viewingAsChild && (
+                  <button
+                    onClick={() => switchBackToParent()}
+                    disabled={switchingChild}
+                    className="p-4 rounded-2xl flex items-center justify-between hover:bg-gray-100 transition-colors text-left w-full border-2 border-purple bg-purple-50"
                   >
                     <div>
-                      <p className="font-bold text-gray-900">{child.username}</p>
-                      <p className="text-xs text-gray-500">
-                        {child.readingCount} reading, {child.finishedCount} finished
-                      </p>
+                      <p className="font-bold text-purple">My Reading Shelf</p>
+                      <p className="text-xs text-purple-600">View all family books</p>
                     </div>
-                  </div>
-                ))}
+                    <svg className="w-5 h-5 text-purple" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M12 13l-5-5 5-5 5 5-5 5z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                )}
+                {children.map(child => {
+                  const isSelected = switchedChild?.id === child.id
+                  return (
+                    <button
+                      key={child.id}
+                      onClick={() => switchToChild(child)}
+                      disabled={switchingChild}
+                      className={`p-4 rounded-2xl flex items-center justify-between hover:bg-purple-50 transition-colors text-left w-full ${
+                        isSelected ? "bg-purple text-white" : "bg-white"
+                      }`}
+                    >
+                      <div>
+                        <p className={`font-bold ${isSelected ? "text-white" : "text-gray-900"}`}>
+                          {child.username}
+                        </p>
+                        <p className={`text-xs ${isSelected ? "text-purple-200" : "text-gray-500"}`}>
+                          {child.readingCount} reading, {child.finishedCount} finished
+                        </p>
+                      </div>
+                      {isSelected && (
+                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {!isSelected && (
+                        <div className="w-3 h-3 rounded-full bg-purple"></div>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -353,7 +467,7 @@ export default function Dashboard() {
               <BookCard
                 key={book.id}
                 book={book}
-                onClick={() => router.push(`/book/${book.id}`)}
+                onClick={() => router.push(`/book/${book.id}${viewingAsChild ? `?childId=${switchedChild?.id}` : ''}`)}
               />
             ))}
           </div>

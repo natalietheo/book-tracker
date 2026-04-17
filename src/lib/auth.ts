@@ -65,6 +65,8 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         session.user.id = token.id as string
         session.user.accountType = token.accountType as string
         session.user.parentId = token.parentId as string | null
+        // Track if parent has switched to view as child
+        session.user.switchedToChildId = token.switchedToChildId as string | null
       }
       return session
     }

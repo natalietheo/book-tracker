@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 interface BookInfo {
   title: string
@@ -22,9 +22,11 @@ const statuses = [
   { value: "finished", label: "Finished" },
 ]
 
-export default function AddBook() {
+function AddBookContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const childId = searchParams.get("childId")
   const [isbn, setIsbn] = useState("")
   const [titleSearch, setTitleSearch] = useState("")
   const [searching, setSearching] = useState(false)
@@ -142,9 +144,14 @@ export default function AddBook() {
     setError("")
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (childId) {
+        headers["x-child-id"] = childId
+      }
+
       const res = await fetch("/api/books", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           isbn: isbn.trim() || null,
           title: formData.title,
@@ -183,10 +190,10 @@ export default function AddBook() {
             </svg>
             Back
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Add a Book</h1>
+          <h1 className="text-2xl font-display text-gray-900">Add a Book</h1>
         </header>
 
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <div className="bg-cream rounded-2xl shadow-md p-6 mb-6">
           <div className="flex gap-2 mb-4">
             <button
               onClick={() => {
@@ -197,8 +204,8 @@ export default function AddBook() {
               }}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 activeSearch === "isbn"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-coral text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-100"
               }`}
             >
               Search by ISBN
@@ -212,8 +219,8 @@ export default function AddBook() {
               }}
               className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 activeSearch === "title"
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  ? "bg-coral text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-100"
               }`}
             >
               Search by Title/Author
@@ -227,13 +234,13 @@ export default function AddBook() {
                 value={isbn}
                 onChange={(e) => setIsbn(e.target.value)}
                 placeholder="Enter ISBN (e.g., 978-0-06-112008-4)"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 onKeyDown={(e) => e.key === "Enter" && searchByIsbn()}
               />
               <button
                 onClick={searchByIsbn}
                 disabled={searching || !isbn.trim()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="bg-coral text-white px-6 py-2 rounded-2xl hover:bg-opacity-90 transition-colors disabled:opacity-50"
               >
                 {searching ? "Searching..." : "Search"}
               </button>
@@ -245,13 +252,13 @@ export default function AddBook() {
                 value={titleSearch}
                 onChange={(e) => setTitleSearch(e.target.value)}
                 placeholder="Enter title or author (e.g., Harry Potter)"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 onKeyDown={(e) => e.key === "Enter" && searchByTitle()}
               />
               <button
                 onClick={searchByTitle}
                 disabled={searching || !titleSearch.trim()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="bg-coral text-white px-6 py-2 rounded-2xl hover:bg-opacity-90 transition-colors disabled:opacity-50"
               >
                 {searching ? "Searching..." : "Search"}
               </button>
@@ -259,11 +266,11 @@ export default function AddBook() {
           )}
 
           {searchError && (
-            <p className="text-red-500 text-sm mt-2">{searchError}</p>
+            <p className="text-coral text-sm mt-2">{searchError}</p>
           )}
 
           {searchResults.length > 0 && (
-            <div className="mt-4 max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+            <div className="mt-4 max-h-60 overflow-y-auto border border-gray-200 rounded-2xl">
               {searchResults.map((result, index) => (
                 <button
                   key={index}
@@ -289,7 +296,7 @@ export default function AddBook() {
           )}
 
           {bookInfo && (
-            <div className="mt-4 p-4 bg-green-50 rounded-lg flex items-center gap-4">
+            <div className="mt-4 p-4 bg-teal-50 rounded-2xl flex items-center gap-4">
               {bookInfo.coverUrl && (
                 <img
                   src={bookInfo.coverUrl}
@@ -298,66 +305,66 @@ export default function AddBook() {
                 />
               )}
               <div>
-                <p className="font-medium text-green-800">Book found!</p>
-                <p className="text-sm text-green-700">{bookInfo.title}</p>
+                <p className="font-medium text-teal-800">Book found!</p>
+                <p className="text-sm text-teal-700">{bookInfo.title}</p>
                 {bookInfo.author && (
-                  <p className="text-sm text-green-600">{bookInfo.author}</p>
+                  <p className="text-sm text-teal-600">{bookInfo.author}</p>
                 )}
               </div>
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-lg font-semibold mb-4">Book Details</h2>
+        <form onSubmit={handleSubmit} className="bg-cream rounded-2xl shadow-md p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Book Details</h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">
                 Title *
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">
                 Author
               </label>
               <input
                 type="text"
                 value={formData.author}
                 onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">
                 Cover URL
               </label>
               <input
                 type="url"
                 value={formData.coverUrl}
                 onChange={(e) => setFormData({ ...formData, coverUrl: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 placeholder="https://..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">
                 Status
               </label>
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
               >
                 {statuses.map(s => (
                   <option key={s.value} value={s.value}>{s.label}</option>
@@ -366,7 +373,7 @@ export default function AddBook() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">
                 Rating
               </label>
               <div className="flex gap-1">
@@ -378,35 +385,35 @@ export default function AddBook() {
                       ...formData,
                       rating: formData.rating === star ? 0 : star
                     })}
-                    className="text-2xl focus:outline-none"
+                    className={`text-2xl focus:outline-none ${star <= formData.rating ? "text-amber" : "text-gray-300"}`}
                   >
-                    {star <= formData.rating ? "★" : "☆"}
+                    ★
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-bold text-gray-700 mb-1">
                 Notes
               </label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 placeholder="What do you think about this book?"
               />
             </div>
 
             {error && (
-              <p className="text-red-500 text-sm">{error}</p>
+              <p className="text-coral text-sm">{error}</p>
             )}
 
             <button
               type="submit"
               disabled={saving}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="w-full bg-coral text-white py-3 px-4 rounded-2xl hover:bg-opacity-90 transition-colors disabled:opacity-50 font-bold"
             >
               {saving ? "Saving..." : "Add Book"}
             </button>
@@ -414,5 +421,21 @@ export default function AddBook() {
         </form>
       </div>
     </main>
+  )
+}
+
+function AddBookLoading() {
+  return (
+    <main className="flex-1 flex items-center justify-center">
+      <p className="text-gray-600">Loading...</p>
+    </main>
+  )
+}
+
+export default function AddBook() {
+  return (
+    <Suspense fallback={<AddBookLoading />}>
+      <AddBookContent />
+    </Suspense>
   )
 }

@@ -2,24 +2,25 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import { randomBytes } from "crypto"
 
 export async function POST(request: Request) {
   try {
     const session = await auth()
     const { email, username, password, accountType } = await request.json()
 
-    if (!password) {
-      return NextResponse.json(
-        { error: "Password is required" },
-        { status: 400 }
-      )
-    }
-
     // Parent signup (no auth required)
     if (accountType === "parent") {
       if (!email) {
         return NextResponse.json(
           { error: "Email is required for parent account" },
+          { status: 400 }
+        )
+      }
+
+      if (!password) {
+        return NextResponse.json(
+          { error: "Password is required for parent account" },
           { status: 400 }
         )
       }
@@ -79,7 +80,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10)
+    // Generate a random password for children if not provided
+    // Children don't need passwords - parent manages their account
+    const childPassword = password || randomBytes(16).toString("hex")
+    const hashedPassword = await bcrypt.hash(childPassword, 10)
 
     const user = await prisma.user.create({
       data: {
