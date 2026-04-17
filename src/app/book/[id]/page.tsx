@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter, useParams } from "next/navigation"
+import { useRouter, useParams, useSearchParams } from "next/navigation"
 
 interface Book {
   id: string
@@ -22,10 +22,12 @@ const statuses = [
   { value: "finished", label: "Finished" },
 ]
 
-export default function BookDetail() {
+function BookDetailContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
+  const childId = searchParams.get("childId")
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -53,7 +55,11 @@ export default function BookDetail() {
 
   const fetchBook = async () => {
     try {
-      const res = await fetch(`/api/books/${params.id}`)
+      const headers: Record<string, string> = {}
+      if (childId) {
+        headers["x-child-id"] = childId
+      }
+      const res = await fetch(`/api/books/${params.id}`, { headers })
       if (res.ok) {
         const data = await res.json()
         setBook(data)
@@ -82,9 +88,14 @@ export default function BookDetail() {
     setError("")
 
     try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" }
+      if (childId) {
+        headers["x-child-id"] = childId
+      }
+
       const res = await fetch(`/api/books/${params.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           title: formData.title,
           author: formData.author || null,
@@ -115,8 +126,14 @@ export default function BookDetail() {
     setDeleting(true)
 
     try {
+      const headers: Record<string, string> = {}
+      if (childId) {
+        headers["x-child-id"] = childId
+      }
+
       const res = await fetch(`/api/books/${params.id}`, {
         method: "DELETE",
+        headers,
       })
 
       if (res.ok) {
@@ -159,9 +176,9 @@ export default function BookDetail() {
           </button>
         </header>
 
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <div className="bg-cream rounded-2xl shadow-md overflow-hidden">
           {book.coverUrl && (
-            <div className="bg-gray-100 p-8 flex justify-center">
+            <div className="bg-white p-8 flex justify-center">
               <img
                 src={book.coverUrl}
                 alt={book.title}
@@ -173,32 +190,32 @@ export default function BookDetail() {
           <div className="p-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-gray-700 mb-1">
                   Title
                 </label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-gray-700 mb-1">
                   Author
                 </label>
                 <input
                   type="text"
                   value={formData.author}
                   onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 />
               </div>
 
               {book.isbn && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">
                     ISBN
                   </label>
                   <p className="text-gray-900">{book.isbn}</p>
@@ -206,13 +223,13 @@ export default function BookDetail() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-gray-700 mb-1">
                   Status
                 </label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                 >
                   {statuses.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
@@ -221,7 +238,7 @@ export default function BookDetail() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-gray-700 mb-1">
                   Rating
                 </label>
                 <div className="flex gap-1">
@@ -233,43 +250,43 @@ export default function BookDetail() {
                         ...formData,
                         rating: formData.rating === star ? 0 : star
                       })}
-                      className="text-2xl focus:outline-none"
+                      className={`text-2xl focus:outline-none ${star <= formData.rating ? "text-amber" : "text-gray-300"}`}
                     >
-                      {star <= formData.rating ? "★" : "☆"}
+                      ★
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-gray-700 mb-1">
                   Notes
                 </label>
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   rows={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-2xl focus:ring-2 focus:ring-coral focus:border-coral bg-white"
                   placeholder="What do you think about this book?"
                 />
               </div>
 
               {error && (
-                <p className="text-red-500 text-sm">{error}</p>
+                <p className="text-coral text-sm">{error}</p>
               )}
 
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-coral text-white py-3 px-4 rounded-2xl hover:bg-opacity-90 transition-colors disabled:opacity-50 font-bold"
                 >
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="bg-red-100 text-red-600 px-6 py-3 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-50"
+                  className="bg-red-100 text-red-600 px-6 py-3 rounded-2xl hover:bg-red-200 transition-colors disabled:opacity-50"
                 >
                   {deleting ? "Deleting..." : "Delete"}
                 </button>
@@ -279,5 +296,21 @@ export default function BookDetail() {
         </div>
       </div>
     </main>
+  )
+}
+
+function BookDetailLoading() {
+  return (
+    <main className="flex-1 flex items-center justify-center">
+      <p className="text-gray-600">Loading...</p>
+    </main>
+  )
+}
+
+export default function BookDetail() {
+  return (
+    <Suspense fallback={<BookDetailLoading />}>
+      <BookDetailContent />
+    </Suspense>
   )
 }

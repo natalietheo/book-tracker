@@ -9,6 +9,7 @@ declare module "next-auth" {
       image?: string | null
       accountType?: string
       parentId?: string | null
+      switchedToChildId?: string | null
     }
   }
 }

@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Force light mode - disable dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: light;
+  }
+}
+
 :root {
   /* Color palette */
   --coral: #E05D3A;
@@ -10,8 +17,8 @@
   --cream: #FFF8F0;
 
   /* Semantic colors */
-  --background: var(--blush);
-  --surface: var(--cream);
+  --background: var(--cream);
+  --surface: var(--blush);
   --foreground: #1a1a1a;
 
   /* Brand colors */
