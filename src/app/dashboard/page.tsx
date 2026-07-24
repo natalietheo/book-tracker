@@ -44,20 +44,22 @@ export default function Dashboard() {
   const [newChildUsername, setNewChildUsername] = useState("")
   const [newChildPassword, setNewChildPassword] = useState("")
   const [addingChild, setAddingChild] = useState(false)
+  const [editingChildId, setEditingChildId] = useState<string | null>(null)
+  const [editingChildName, setEditingChildName] = useState("")
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [showShareLink, setShowShareLink] = useState(false)
-  // Child switching state
+  const [showFamilySettings, setShowFamilySettings] = useState(false)
+  const [yearStats, setYearStats] = useState<{ booksReadThisYear: number; totalBooksFinished: number; year: number } | null>(null)
   const [switchedChild, setSwitchedChild] = useState<Child | null>(null)
   const [switchingChild, setSwitchingChild] = useState(false)
+  const [viewMode, setViewMode] = useState<"myBooks" | "family">("family")
+  const [yearlyStats, setYearlyStats] = useState<{ booksReadThisYear: number; totalBooksFinished: number; year: number } | null>(null)
 
-  // Fix hydration mismatch - only use session data after mount
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Check if user is a parent (only after mounted to avoid hydration mismatch)
   const isParent = mounted && session?.user?.accountType === "parent"
-  // Check if parent is viewing as a child
   const viewingAsChild = switchedChild !== null
 
   useEffect(() => {
@@ -70,25 +72,46 @@ export default function Dashboard() {
     if (mounted && session) {
       fetchData()
     }
-  }, [mounted, session, switchedChild])
+  }, [mounted, session, switchedChild, viewMode])
 
   const fetchData = async () => {
     try {
-      if (isParent && !viewingAsChild) {
-        // Parent viewing their family shelf
+      if (isParent) {
         const childrenRes = await fetch("/api/children")
-        const booksRes = await fetch("/api/family-books")
-        const parentBooksRes = await fetch("/api/books")
-
         if (childrenRes.ok) {
           const childrenData = await childrenRes.json()
           setChildren(childrenData)
         }
+      }
+
+      const statsParams = viewingAsChild && switchedChild
+        ? `?childId=${switchedChild.id}`
+        : isParent && viewMode === "myBooks"
+          ? '?viewMode=myBooks'
+          : ''
+      const statsRes = await fetch(`/api/stats${statsParams}`)
+      if (statsRes.ok) {
+        const statsData = await statsRes.json()
+        setYearStats(statsData)
+      }
+
+      if (viewingAsChild && switchedChild) {
+        const headers: HeadersInit = {}
+        headers["x-child-id"] = switchedChild.id
+
+        const res = await fetch("/api/books", { headers })
+        if (res.ok) {
+          const data = await res.json()
+          setBooks(data.map((b: any) => ({ ...b, childName: switchedChild?.username })))
+        }
+      } else if (isParent && viewMode === "family") {
+        const familyBooksRes = await fetch("/api/family-books")
+        const parentBooksRes = await fetch("/api/books")
 
         let allBooks: any[] = []
 
-        if (booksRes.ok) {
-          const childrenBooks = await booksRes.json()
+        if (familyBooksRes.ok) {
+          const childrenBooks = await familyBooksRes.json()
           allBooks = allBooks.concat(childrenBooks)
         }
 
@@ -98,23 +121,17 @@ export default function Dashboard() {
         }
 
         setBooks(allBooks)
-      } else {
-        // Either child user OR parent viewing as a child - fetch that user's books
-        // Pass child ID in header if parent is viewing as child
-        const headers: HeadersInit = {}
-        if (isParent && viewingAsChild && switchedChild) {
-          headers["x-child-id"] = switchedChild.id
+      } else if (isParent && viewMode === "myBooks") {
+        const parentBooksRes = await fetch("/api/books")
+        if (parentBooksRes.ok) {
+          const pBooks = await parentBooksRes.json()
+          setBooks(pBooks.map((b: any) => ({ ...b, childName: "You" })))
         }
-
-        const res = await fetch("/api/books", { headers })
+      } else {
+        const res = await fetch("/api/books")
         if (res.ok) {
           const data = await res.json()
-          // Add childName for parent viewing as child
-          if (isParent && viewingAsChild) {
-            setBooks(data.map((b: any) => ({ ...b, childName: switchedChild?.username })))
-          } else {
-            setBooks(data)
-          }
+          setBooks(data)
         }
       }
     } catch (error) {
@@ -134,7 +151,6 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: newChildUsername,
-          // No password for children - they don't need one
           accountType: "child",
         }),
       })
@@ -143,12 +159,30 @@ export default function Dashboard() {
         setShowAddChild(false)
         setNewChildUsername("")
         setNewChildPassword("")
-        fetchData() // Refresh children list
+        fetchData()
       }
     } catch (error) {
       console.error("Failed to add child:", error)
     } finally {
       setAddingChild(false)
+    }
+  }
+
+  const editChild = async (childId: string, newUsername: string) => {
+    if (!newUsername.trim()) return
+
+    try {
+      const res = await fetch(`/api/children/${childId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: newUsername }),
+      })
+
+      if (res.ok) {
+        fetchData()
+      }
+    } catch (error) {
+      console.error("Failed to edit child:", error)
     }
   }
 
@@ -163,7 +197,6 @@ export default function Dashboard() {
 
       if (res.ok) {
         setSwitchedChild(child)
-        // Refresh session to get updated data
         await update()
       }
     } catch (error) {
@@ -232,42 +265,13 @@ export default function Dashboard() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-display text-gray-900">
-              {viewingAsChild
-                ? `${switchedChild?.username}'s Books`
-                : isParent
-                  ? "My Reading Shelf"
-                  : "My Books"}
+              {isParent ? "My Reading Shelf" : "My Books"}
             </h1>
             <p className="text-gray-600 font-body">
-              {viewingAsChild
-                ? `Managing ${switchedChild?.username}'s reading list`
-                : "Track every book your family reads together"}
+              "Track every book your family reads together"
             </p>
           </div>
           <div className="flex gap-3">
-            {/* Child Switcher Dropdown for Parents */}
-            {isParent && children.length > 0 && (
-              <select
-                value={viewingAsChild ? switchedChild?.id : ""}
-                onChange={(e) => {
-                  if (e.target.value === "") {
-                    switchBackToParent()
-                  } else {
-                    const child = children.find(c => c.id === e.target.value)
-                    if (child) switchToChild(child)
-                  }
-                }}
-                disabled={switchingChild}
-                className="bg-purple text-white px-4 py-3 rounded-2xl font-bold disabled:opacity-50"
-              >
-                <option value="">My Shelf</option>
-                {children.map((child) => (
-                  <option key={child.id} value={child.id}>
-                    {child.username}
-                  </option>
-                ))}
-              </select>
-            )}
             <button
               onClick={() => router.push(`/add${viewingAsChild ? `?childId=${switchedChild?.id}` : ''}`)}
               className="bg-coral text-white px-5 py-3 rounded-2xl hover:bg-opacity-90 transition-colors flex items-center gap-2 font-bold"
@@ -277,22 +281,105 @@ export default function Dashboard() {
               </svg>
               Add Book
             </button>
+            {isParent && (
+              <button
+                onClick={() => setShowFamilySettings(true)}
+                className="bg-purple text-white px-5 py-3 rounded-2xl hover:bg-opacity-90 transition-colors font-bold"
+              >
+                Family Settings
+              </button>
+            )}
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
               className="bg-white text-gray-700 px-4 py-3 rounded-2xl hover:bg-gray-100 transition-colors font-bold"
             >
               Log Out
             </button>
-            {isParent && (
-              <button
-                onClick={generateShareLink}
-                className="bg-purple text-white px-5 py-3 rounded-2xl hover:bg-opacity-90 transition-colors font-bold"
-              >
-                Share
-              </button>
-            )}
           </div>
         </header>
+
+        {isParent && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            <button
+              onClick={() => {
+                setViewMode("family")
+                setSwitchedChild(null)
+              }}
+              className={`px-4 py-2 rounded-full font-bold text-sm transition-colors ${
+                viewMode === "family" && !viewingAsChild
+                  ? "bg-purple text-white"
+                  : "bg-white text-gray-700 hover:bg-purple-50 border border-purple"
+              }`}
+            >
+              🏠 Family
+            </button>
+            <button
+              onClick={() => {
+                setViewMode("myBooks")
+                setSwitchedChild(null)
+              }}
+              className={`px-4 py-2 rounded-full font-bold text-sm transition-colors ${
+                viewMode === "myBooks" && !viewingAsChild
+                  ? "bg-purple text-white"
+                  : "bg-white text-gray-700 hover:bg-purple-50 border border-purple"
+              }`}
+            >
+              📚 My Books
+            </button>
+            {children.map(child => (
+              <button
+                key={child.id}
+                onClick={() => {
+                  setViewMode("family")
+                  setSwitchedChild(child)
+                }}
+                className={`px-4 py-2 rounded-full font-bold text-sm transition-colors ${
+                  viewingAsChild && switchedChild?.id === child.id
+                    ? "bg-purple text-white"
+                    : "bg-white text-gray-700 hover:bg-purple-50 border border-purple"
+                }`}
+              >
+                {child.username}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {yearStats && (
+          <div className="bg-gradient-to-r from-amber via-orange-400 to-coral rounded-3xl p-6 mb-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="text-center flex-1">
+                <div className="text-6xl mb-2">📚</div>
+                <p className="text-amber-900 text-xs font-bold uppercase tracking-wider mb-1">This Year</p>
+                <p className="text-5xl font-display text-white drop-shadow-md">{yearStats.booksReadThisYear}</p>
+                <p className="text-amber-100 text-xs mt-1">books read</p>
+              </div>
+              <div className="flex flex-col items-center px-4">
+                <div className="text-3xl">✨</div>
+                <div className="w-px h-16 bg-white/30 my-2"></div>
+                <div className="text-3xl">🌟</div>
+              </div>
+              <div className="text-center flex-1">
+                <div className="text-6xl mb-2">🏆</div>
+                <p className="text-amber-900 text-xs font-bold uppercase tracking-wider mb-1">All Time</p>
+                <p className="text-5xl font-display text-white drop-shadow-md">{yearStats.totalBooksFinished}</p>
+                <p className="text-amber-100 text-xs mt-1">books finished</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-white/30">
+              <div className="flex items-center justify-between text-xs text-amber-100 mb-2">
+                <span>📖 Reading journey</span>
+                <span>{yearStats.year}</span>
+              </div>
+              <div className="h-4 bg-amber-900/30 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min((yearStats.booksReadThisYear / 20) * 100, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showShareLink && shareToken && (
           <div className="bg-purple-100 border border-purple rounded-2xl p-4 mb-6">
@@ -320,34 +407,25 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Parent: Show children section - always visible */}
-        {isParent && (
-          <div className="bg-cream rounded-2xl shadow-md p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">
-                {viewingAsChild ? "Switch Child" : "Your Children"}
-              </h2>
-              {!viewingAsChild && (
+        {showFamilySettings && isParent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-display text-gray-900">Family Settings</h2>
                 <button
-                  onClick={() => setShowAddChild(!showAddChild)}
-                  className="text-coral hover:underline text-sm font-bold"
+                  onClick={() => setShowFamilySettings(false)}
+                  className="text-gray-500 hover:text-gray-700"
                 >
-                  {showAddChild ? "Cancel" : "+ Add Child"}
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-              )}
-              {viewingAsChild && (
-                <button
-                  onClick={switchBackToParent}
-                  disabled={switchingChild}
-                  className="text-purple text-sm font-bold hover:underline disabled:opacity-50"
-                >
-                  ← Back to My Shelf
-                </button>
-              )}
-            </div>
+              </div>
 
-            {showAddChild && (
-              <form onSubmit={addChild} className="mb-4 p-4 bg-white rounded-2xl">
+              <p className="text-gray-600 mb-4">Manage your family members below.</p>
+
+              <form onSubmit={addChild} className="mb-6 p-4 bg-cream rounded-2xl">
+                <p className="font-bold text-gray-900 mb-3">Add a child</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -366,60 +444,71 @@ export default function Dashboard() {
                   </button>
                 </div>
               </form>
-            )}
 
-            {children.length === 0 ? (
-              <p className="text-gray-500 text-sm">No children added yet.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {/* My Reading Shelf option - always first when viewing as child */}
-                {viewingAsChild && (
-                  <button
-                    onClick={() => switchBackToParent()}
-                    disabled={switchingChild}
-                    className="p-4 rounded-2xl flex items-center justify-between hover:bg-gray-100 transition-colors text-left w-full border-2 border-purple bg-purple-50"
-                  >
-                    <div>
-                      <p className="font-bold text-purple">My Reading Shelf</p>
-                      <p className="text-xs text-purple-600">View all family books</p>
-                    </div>
-                    <svg className="w-5 h-5 text-purple" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12 13l-5-5 5-5 5 5-5 5z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                )}
-                {children.map(child => {
-                  const isSelected = switchedChild?.id === child.id
-                  return (
-                    <button
-                      key={child.id}
-                      onClick={() => switchToChild(child)}
-                      disabled={switchingChild}
-                      className={`p-4 rounded-2xl flex items-center justify-between hover:bg-purple-50 transition-colors text-left w-full ${
-                        isSelected ? "bg-purple text-white" : "bg-white"
-                      }`}
-                    >
-                      <div>
-                        <p className={`font-bold ${isSelected ? "text-white" : "text-gray-900"}`}>
-                          {child.username}
-                        </p>
-                        <p className={`text-xs ${isSelected ? "text-purple-200" : "text-gray-500"}`}>
-                          {child.readingCount} reading, {child.finishedCount} finished
-                        </p>
+              {children.length > 0 && (
+                <div>
+                  <p className="font-bold text-gray-900 mb-3">Your Children</p>
+                  <div className="space-y-2">
+                    {children.map(child => (
+                      <div
+                        key={child.id}
+                        className="flex items-center justify-between p-3 bg-cream rounded-2xl"
+                      >
+                        {editingChildId === child.id ? (
+                          <div className="flex gap-2 flex-1">
+                            <input
+                              type="text"
+                              value={editingChildName}
+                              onChange={(e) => setEditingChildName(e.target.value)}
+                              className="flex-1 px-3 py-2 border border-gray-200 rounded-xl bg-white text-sm"
+                              autoFocus
+                            />
+                            <button
+                              onClick={async () => {
+                                await editChild(child.id, editingChildName)
+                                setEditingChildId(null)
+                                fetchData()
+                              }}
+                              className="text-green-600 font-bold text-sm px-2"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingChildId(null)}
+                              className="text-gray-500 font-bold text-sm px-2"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <div>
+                              <p className="font-bold text-gray-900">{child.username}</p>
+                              <p className="text-xs text-gray-500">
+                                {child.readingCount} reading, {child.finishedCount} finished
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEditingChildId(child.id)
+                                setEditingChildName(child.username)
+                              }}
+                              className="text-purple text-sm font-bold"
+                            >
+                              Edit
+                            </button>
+                          </>
+                        )}
                       </div>
-                      {isSelected && (
-                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                      {!isSelected && (
-                        <div className="w-3 h-3 rounded-full bg-purple"></div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {children.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No children added yet.</p>
+              )}
+            </div>
           </div>
         )}
 
