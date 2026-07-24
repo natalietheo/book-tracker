@@ -13,7 +13,6 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // Verify the child belongs to this parent
   const child = await prisma.user.findFirst({
     where: {
       id: childId,
@@ -25,7 +24,6 @@ export async function GET(
     return NextResponse.json({ error: "Child not found" }, { status: 404 })
   }
 
-  // Get child's books
   const books = await prisma.book.findMany({
     where: { userId: childId },
     orderBy: { createdAt: "desc" },
@@ -35,6 +33,45 @@ export async function GET(
     id: child.id,
     username: child.username,
     books,
+  })
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ childId: string }> }
+) {
+  const session = await auth()
+  const { childId } = await params
+
+  if (!session?.user?.id || session.user.accountType !== "parent") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const child = await prisma.user.findFirst({
+    where: {
+      id: childId,
+      parentId: session.user.id,
+    },
+  })
+
+  if (!child) {
+    return NextResponse.json({ error: "Child not found" }, { status: 404 })
+  }
+
+  const { username } = await request.json()
+
+  if (!username || typeof username !== "string") {
+    return NextResponse.json({ error: "Username is required" }, { status: 400 })
+  }
+
+  const updatedChild = await prisma.user.update({
+    where: { id: childId },
+    data: { username: username.trim() },
+  })
+
+  return NextResponse.json({
+    id: updatedChild.id,
+    username: updatedChild.username,
   })
 }
 
@@ -49,7 +86,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // Verify the child belongs to this parent
   const child = await prisma.user.findFirst({
     where: {
       id: childId,
@@ -61,7 +97,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Child not found" }, { status: 404 })
   }
 
-  // Delete the child and their books (cascade will handle books)
   await prisma.user.delete({
     where: { id: childId },
   })
